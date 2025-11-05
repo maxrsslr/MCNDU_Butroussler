@@ -1,3 +1,5 @@
+# Récupération des données 
+
 import requests
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
@@ -71,3 +73,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
