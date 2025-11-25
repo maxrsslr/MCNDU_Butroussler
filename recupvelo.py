@@ -1,34 +1,30 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Nov 25 17:12:34 2025
-SCRIPT RECUP VELO SNAPSHOT 2.2 (fonctionnelle avec 9mn sur réseau non limité)
-Objectif : réduire le temps de latence (17 minutes initialement)
+Created on Tue Nov 25 17:49:26 2025
+SCRIPT RECUP VELO SNAPSHOT.3 (objectif de réduire la latence de 9 mn)
 @author: Marius R-D
 """
 
 # -*- coding: utf-8 -*-
-"""
-Created on Fri Nov 21 11:16:36 2025
-@author: Marius R-D
-"""
+
 import requests
 import pandas as pd
-from concurrent.futures import ThreadPoolExecutor
-import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 
 def get_stations():
     url = "https://tdqr.ovh/api/stations"
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()["data"]
-    else:
-        raise Exception(f"Erreur lors de la récupération des stations : {response.status_code}")
+    with requests.Session() as session:
+        response = session.get(url)
+        if response.status_code == 200:
+            return response.json()["data"]
+        else:
+            raise Exception(f"Erreur lors de la récupération des stations : {response.status_code}")
 
-def get_bikes_for_station(station_id):
+def get_bikes_for_station(session, station_id):
     url = f"https://tdqr.ovh/api/bikes/station/{station_id}"
     try:
-        response = requests.get(url, timeout=10)  # Réduire le timeout
+        response = session.get(url, timeout=50)
         if response.status_code == 200:
             return response.json()["data"]
         else:
@@ -39,31 +35,39 @@ def get_bikes_for_station(station_id):
 
 def main():
     try:
-        # Lire le fichier CSV existant pour récupérer les bike_id déjà enregistrés
+        # Lire les bike_id déjà enregistrés dans bike_ids.csv
         existing_bike_ids = set()
         if os.path.exists("bike_ids.csv"):
             existing_df = pd.read_csv("bike_ids.csv")
             existing_bike_ids = set(existing_df["bike_id"])
 
+        # Récupérer les stations
         stations = get_stations()
         print(f"Nombre de stations récupérées : {len(stations)}")
 
-        new_bike_ids = []
-        new_bike_count = 0
+        # Utiliser une session HTTP persistante
+        with requests.Session() as session:
+            new_bike_ids = set()
+            new_bike_count = 0
 
-        with ThreadPoolExecutor(max_workers=70) as executor:  # Augmenter le nombre de threads
-            for station in stations:
-                station_id = station["id"]
-                bikes = get_bikes_for_station(station_id)
-                bike_ids = [bike["id"] for bike in bikes]
-                for bike_id in bike_ids:
-                    if bike_id not in existing_bike_ids:
-                        new_bike_ids.append(bike_id)
-                        new_bike_count += 1
-                # time.sleep(0.05)  # Réduire ou supprimer le délai si le serveur le permet
+            # Paralléliser la récupération des vélos pour toutes les stations
+            with ThreadPoolExecutor(max_workers=70) as executor:
+                futures = {executor.submit(get_bikes_for_station, session, station["id"]): station["id"] for station in stations}
 
-        # Créer un DataFrame avec uniquement les nouveaux bike_id
-        df_new = pd.DataFrame({"bike_id": new_bike_ids})
+                for future in as_completed(futures):
+                    station_id = futures[future]
+                    try:
+                        bikes = future.result()
+                        bike_ids = [bike["id"] for bike in bikes]
+                        for bike_id in bike_ids:
+                            if bike_id not in existing_bike_ids and bike_id not in new_bike_ids:
+                                new_bike_ids.add(bike_id)
+                                new_bike_count += 1
+                    except Exception as e:
+                        print(f"Erreur lors du traitement de la station {station_id} : {e}")
+
+        # Créer un DataFrame avec les nouveaux bike_id
+        df_new = pd.DataFrame({"bike_id": list(new_bike_ids)})
 
         # Ajouter les nouveaux bike_id au DataFrame existant (s'il existe)
         if os.path.exists("bike_ids.csv"):
@@ -84,4 +88,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
