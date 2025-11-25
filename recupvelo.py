@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Tue Nov 25 17:49:26 2025
-SCRIPT RECUP VELO SNAPSHOT.3 (objectif de réduire la latence de 9 mn)
+SCRIPT RECUP VELO V3 (fonctionnel)
 @author: Marius R-D
 """
 
@@ -63,6 +63,7 @@ def main():
                             if bike_id not in existing_bike_ids and bike_id not in new_bike_ids:
                                 new_bike_ids.add(bike_id)
                                 new_bike_count += 1
+                            
                     except Exception as e:
                         print(f"Erreur lors du traitement de la station {station_id} : {e}")
 
@@ -88,3 +89,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
