@@ -1,5 +1,13 @@
 # -*- coding: utf-8 -*-
 """
+Created on Tue Nov 25 17:12:34 2025
+SCRIPT RECUP VELO SNAPSHOT 2.2 (fonctionnelle avec 9mn sur réseau non limité)
+Objectif : réduire le temps de latence (17 minutes initialement)
+@author: Marius R-D
+"""
+
+# -*- coding: utf-8 -*-
+"""
 Created on Fri Nov 21 11:16:36 2025
 @author: Marius R-D
 """
@@ -20,7 +28,7 @@ def get_stations():
 def get_bikes_for_station(station_id):
     url = f"https://tdqr.ovh/api/bikes/station/{station_id}"
     try:
-        response = requests.get(url, timeout=30)
+        response = requests.get(url, timeout=10)  # Réduire le timeout
         if response.status_code == 200:
             return response.json()["data"]
         else:
@@ -43,7 +51,7 @@ def main():
         new_bike_ids = []
         new_bike_count = 0
 
-        with ThreadPoolExecutor(max_workers=40) as executor:
+        with ThreadPoolExecutor(max_workers=70) as executor:  # Augmenter le nombre de threads
             for station in stations:
                 station_id = station["id"]
                 bikes = get_bikes_for_station(station_id)
@@ -52,7 +60,7 @@ def main():
                     if bike_id not in existing_bike_ids:
                         new_bike_ids.append(bike_id)
                         new_bike_count += 1
-                time.sleep(0.1)  # Pause pour éviter de surcharger le serveur
+                # time.sleep(0.05)  # Réduire ou supprimer le délai si le serveur le permet
 
         # Créer un DataFrame avec uniquement les nouveaux bike_id
         df_new = pd.DataFrame({"bike_id": new_bike_ids})
@@ -62,6 +70,9 @@ def main():
             df = pd.concat([existing_df, df_new], ignore_index=True)
         else:
             df = df_new
+
+        # Supprimer les doublons éventuels
+        df = df.drop_duplicates(subset=["bike_id"])
 
         print(f"Nombre total de vélos enregistrés : {len(df)}")
         print(f"Nombre de nouveaux vélos ajoutés : {new_bike_count}")
@@ -73,3 +84,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
