@@ -4,7 +4,7 @@ Created on Tue Dec  9 20:20:03 2025
 
 @author: titou
 """
-
+#ATTENTION BESOIN DE FAIRE -pip install scikit-learn POUR FAIRE FONCTIONNER CE SCRIPT SINON IL NE SAIT PAS COMMENT AFFICHIER LES ITININERARIRES
 import json
 import random
 from pathlib import Path
@@ -177,3 +177,4 @@ if geoms:
     print(f"Fichier écrit : {output_file}")
 else:
     print("Aucun itinéraire à exporter.")
+
