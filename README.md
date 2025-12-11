@@ -1,4 +1,4 @@
-# README:  Nouvelles données de mobilité : collecte et analyse, Projet (Code, Documentation)
+# RAPPORT:  Nouvelles données de mobilité : collecte et analyse, Projet (Code, Documentation)
 
 *Décembre 2025*
 
@@ -33,3 +33,11 @@ Utilisation de divers services de Amazon Web Service (AWS):
 
 ## Contenus 
 
+# Récupération des identifiants VELIB
+
+Nous séparons donc notre phase de collecte de données en deux périodes étalées sur 1 mois. La première aura pour objectif d'effectuer uniquement les requêtes à chaque station des vélos actifs. En effectuant ces requêtes sur deux semaines, nous pensons obtenir la liste complète des vélos présents dans le système, en laissant le temps aux vélos potentiellement en maintenance lors de la première semaine de réintégrer le circuit. 
+
+Cela a été fait utilisant les solutions proposées par Amazon Web Services (AWS). 
+
+Trigger (Eventbridge): tous les jours toutes les 6 heures (00h,06h,12h,18h) durant 2 semaines (27/11-11/12) --> AWS Lambda: fonction de récupération des données pour chaque station via l'API), appelée par le trigger toutes les 6h --> DynamoDB: stockage des identifiants dans un base de données. 
+11/12: 24'616 identifiants de vélos uniques. 
