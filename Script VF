@@ -1,10 +1,11 @@
 """
-Calcul optimisé d'itinéraires Vélib avec Dijkstra
-AMÉLIORATIONS :
-- Checkpoint pour reprendre en cas d'interruption
-- Calcul parallèle sur plusieurs CPU
-- Monitoring de progression et RAM
-- Filtrage des paires peu fréquentes (optionnel)
+Script HYBRIDE - SANS PARALLÉLISATION (compatible Spyder/Mac)
+✅ Checkpoint
+✅ Cache graphe OSM
+✅ Pré-calcul nœuds
+✅ Mode DEBUG
+✅ Monitoring RAM
+❌ Pas de parallélisation (pour éviter les problèmes Mac/Spyder)
 """
 
 import json
@@ -16,21 +17,29 @@ from collections import defaultdict
 from tqdm import tqdm
 import pickle
 import os
-from multiprocessing import Pool, cpu_count
 import psutil
 
-# Configuration des chemins
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+
 base_dir = "/Users/titou/Documents/Tradd 22/MCDNU/Fichiers"
 stations_file = f"{base_dir}/velib-emplacement-des-stations.json"
 trajets_file = f"{base_dir}/bike_stats_allege.json"
 output_routes = f"{base_dir}/velib_routes_optimized.geojson"
 output_segments = f"{base_dir}/velib_segments_optimized.geojson"
 checkpoint_file = f"{base_dir}/routes_checkpoint.pkl"
+graph_cache_file = f"{base_dir}/graph_cache.pkl"
+nodes_cache_file = f"{base_dir}/station_nodes_cache.pkl"
 
-# Paramètres d'optimisation
-MIN_TRIP_COUNT = 1  # Augmente à 3-5 pour ignorer les trajets rares et accélérer
-USE_PARALLEL = True  # Calcul parallèle sur plusieurs CPU
-NUM_WORKERS = min(4, cpu_count() - 1)  # Nombre de CPU à utiliser
+# Paramètres
+MIN_TRIP_COUNT = 1
+DEBUG_MODE = False  # Mettre True pour tester avec 1000 trajets
+DEBUG_SAMPLE_SIZE = 1000
+
+print("="*60)
+print("CALCUL ITINÉRAIRES VÉLIB - VERSION SÉQUENTIELLE")
+print("="*60)
 
 # ============================================================================
 # MONITORING
@@ -38,58 +47,57 @@ NUM_WORKERS = min(4, cpu_count() - 1)  # Nombre de CPU à utiliser
 
 def print_memory_usage():
     mem = psutil.virtual_memory()
-    print(f"💾 RAM : {mem.used/1e9:.1f}/{mem.total/1e9:.1f} GB ({mem.percent}%)")
+    print(f"💾 RAM : {mem.used/1e9:.1f}/{mem.total/1e9:.1f} GB ({mem.percent:.1f}%)")
 
+#%%
 # ============================================================================
-# ÉTAPE 1 : Chargement et harmonisation des données
+# ÉTAPE 1 : Chargement des données
 # ============================================================================
 
-def load_and_harmonize_data(stations_file, trajets_file):
-    """Charge et harmonise les identifiants des stations"""
-    print("📥 Chargement des données...")
-    print_memory_usage()
-    
-    with open(stations_file, 'r', encoding='utf-8') as f:
-        stations_data = json.load(f)
-    
-    with open(trajets_file, 'r', encoding='utf-8') as f:
-        trajets_data = json.load(f)
-    
-    # Harmoniser les identifiants (retirer 'station_')
-    for bike in trajets_data:
-        for stat in bike['stats']:
-            if stat.get('start_station_id'):
-                stat['start_station_id'] = stat['start_station_id'].replace('station_', '')
-            if stat.get('end_station_id'):
-                stat['end_station_id'] = stat['end_station_id'].replace('station_', '')
-    
-    print_memory_usage()
-    return stations_data, trajets_data
+print("\n[1/8] Chargement des données...")
+print_memory_usage()
 
-stations_data, trajets_data = load_and_harmonize_data(stations_file, trajets_file)
+with open(stations_file, 'r', encoding='utf-8') as f:
+    stations_data = json.load(f)
 
+with open(trajets_file, 'r', encoding='utf-8') as f:
+    trajets_data = json.load(f)
+
+# Harmoniser les IDs
+for bike in trajets_data:
+    for stat in bike['stats']:
+        if stat.get('start_station_id'):
+            stat['start_station_id'] = stat['start_station_id'].replace('station_', '')
+        if stat.get('end_station_id'):
+            stat['end_station_id'] = stat['end_station_id'].replace('station_', '')
+
+print_memory_usage()
+
+#%%
 # ============================================================================
-# ÉTAPE 2 : Extraction des coordonnées des stations
+# ÉTAPE 2 : Extraction coordonnées stations
 # ============================================================================
+
+print("\n[2/8] Extraction des coordonnées des stations...")
 
 stations_coords = {}
 for s in stations_data:
-    code = s.get("stationcode")
+    code = str(s.get("stationcode"))
     coords = s.get("coordonnees_geo", {})
-    lon = coords.get("lon")
-    lat = coords.get("lat")
+    lon, lat = coords.get("lon"), coords.get("lat")
     if code and lon is not None and lat is not None:
-        stations_coords[str(code)] = (lon, lat)
+        stations_coords[code] = (lon, lat)
 
 print(f"✅ {len(stations_coords)} stations chargées")
 
+#%%
 # ============================================================================
-# ÉTAPE 3 : Extraction des paires uniques et comptage
+# ÉTAPE 3 : Extraction paires uniques
 # ============================================================================
 
-print("🔍 Analyse des trajets...")
+print("\n[3/8] Analyse des trajets...")
+
 pair_counts = defaultdict(int)
-
 for bike in trajets_data:
     for stat in bike.get('stats', []):
         if stat.get('status') == 'completed' and stat.get('end_station_id'):
@@ -99,21 +107,31 @@ for bike in trajets_data:
             if start in stations_coords and end in stations_coords and start != end:
                 pair_counts[(start, end)] += 1
 
-# Filtrer les paires peu fréquentes (optionnel)
-pair_counts = {k: v for k, v in pair_counts.items() if v >= MIN_TRIP_COUNT}
+# Mode DEBUG
+if DEBUG_MODE:
+    print(f"⚠️  MODE DEBUG : échantillonnage de {DEBUG_SAMPLE_SIZE} paires")
+    import random
+    all_pairs = list(pair_counts.items())
+    random.shuffle(all_pairs)
+    pair_counts = dict(all_pairs[:DEBUG_SAMPLE_SIZE])
 
+pair_counts = {k: v for k, v in pair_counts.items() if v >= MIN_TRIP_COUNT}
 unique_pairs = list(pair_counts.keys())
+
 print(f"✅ {len(unique_pairs)} paires uniques (≥{MIN_TRIP_COUNT} trajets)")
 print(f"📊 {sum(pair_counts.values())} trajets totaux")
-print(f"⏱️  Temps estimé : {len(unique_pairs) * 0.3 / 60:.0f}-{len(unique_pairs) * 0.5 / 60:.0f} minutes")
+print(f"⏱️  Temps estimé (séquentiel) : {len(unique_pairs) * 0.3 / 60:.0f}-{len(unique_pairs) * 0.5 / 60:.0f} minutes")
 
-# Libérer la mémoire
+# Libérer mémoire
 del trajets_data
 print_memory_usage()
 
+#%%
 # ============================================================================
-# ÉTAPE 4 : Téléchargement du graphe routier
+# ÉTAPE 4 : Chargement/Téléchargement graphe OSM (AVEC CACHE)
 # ============================================================================
+
+print("\n[4/8] Chargement du graphe routier...")
 
 place = [
     "Paris, France",
@@ -126,30 +144,71 @@ place = [
     "Bezons, France"
 ]
 
-print("🗺️  Téléchargement du graphe OSM...")
-G = ox.graph_from_place(place, network_type="bike")
-print(f"✅ Graphe téléchargé : {len(G.nodes)} nœuds - {len(G.edges)} arêtes")
+if os.path.exists(graph_cache_file):
+    print("  → Chargement depuis le cache...")
+    with open(graph_cache_file, 'rb') as f:
+        G = pickle.load(f)
+    print(f"✅ Graphe chargé : {len(G.nodes):,} nœuds, {len(G.edges):,} arêtes")
+else:
+    print("  → Téléchargement depuis OpenStreetMap (2-5 min)...")
+    G = ox.graph_from_place(place, network_type="bike")
+    print(f"  → Graphe téléchargé : {len(G.nodes):,} nœuds, {len(G.edges):,} arêtes")
+    
+    print("  → Extraction du composant principal...")
+    G = ox.truncate.largest_component(G, strongly=True)
+    print(f"  → Graphe traité : {len(G.nodes):,} nœuds, {len(G.edges):,} arêtes")
+    
+    print("  → Sauvegarde du cache...")
+    with open(graph_cache_file, 'wb') as f:
+        pickle.dump(G, f)
+    print(f"✅ Cache sauvegardé : {graph_cache_file}")
+
 print_memory_usage()
 
+#%%
 # ============================================================================
-# ÉTAPE 5 : Calcul des itinéraires avec checkpoint
+# ÉTAPE 5 : Pré-calcul des nœuds OSM (AVEC CACHE)
 # ============================================================================
 
-def calculate_single_route(args):
-    """Calcule un seul itinéraire (pour parallélisation)"""
-    start_code, end_code, count, G_copy, stations_coords_copy = args
+print("\n[5/8] Pré-calcul des nœuds OSM pour chaque station...")
+
+if os.path.exists(nodes_cache_file):
+    print("  → Chargement depuis le cache...")
+    with open(nodes_cache_file, 'rb') as f:
+        station_nodes = pickle.load(f)
+    print(f"✅ {len(station_nodes)} nœuds chargés")
+else:
+    station_nodes = {}
+    for code, coords in tqdm(stations_coords.items(), desc="Calcul nœuds"):
+        try:
+            station_nodes[code] = ox.distance.nearest_nodes(G, coords[0], coords[1])
+        except Exception as e:
+            print(f"  ⚠️  Station {code} : {e}")
     
-    start_coords = stations_coords_copy[start_code]
-    end_coords = stations_coords_copy[end_code]
+    with open(nodes_cache_file, 'wb') as f:
+        pickle.dump(station_nodes, f)
+    print(f"✅ {len(station_nodes)} nœuds calculés et sauvegardés")
+
+#%%
+# ============================================================================
+# ÉTAPE 6 : Calcul itinéraires SÉQUENTIEL avec checkpoint
+# ============================================================================
+
+print("\n[6/8] Calcul des itinéraires (mode séquentiel)...")
+
+def calculate_single_route(start_code, end_code, count):
+    """Calcule un seul itinéraire"""
+    if start_code not in station_nodes or end_code not in station_nodes:
+        return None
     
     try:
-        orig_node = ox.distance.nearest_nodes(G_copy, start_coords[0], start_coords[1])
-        dest_node = ox.distance.nearest_nodes(G_copy, end_coords[0], end_coords[1])
+        orig_node = station_nodes[start_code]
+        dest_node = station_nodes[end_code]
         
-        path = nx.shortest_path(G_copy, orig_node, dest_node, weight="length")
-        points = [(G_copy.nodes[n]["x"], G_copy.nodes[n]["y"]) for n in path]
+        path = nx.shortest_path(G, orig_node, dest_node, weight="length")
+        points = [(G.nodes[n]["x"], G.nodes[n]["y"]) for n in path]
         line = LineString(points)
-        length = nx.shortest_path_length(G_copy, orig_node, dest_node, weight="length")
+        length = nx.shortest_path_length(G, orig_node, dest_node, weight="length")
         
         return {
             "geometry": line,
@@ -161,7 +220,7 @@ def calculate_single_route(args):
     except:
         return None
 
-# Vérifier s'il y a un checkpoint
+# Charger checkpoint si existe
 if os.path.exists(checkpoint_file):
     print("📂 Checkpoint trouvé, chargement...")
     with open(checkpoint_file, 'rb') as f:
@@ -177,34 +236,17 @@ remaining_pairs = [(s, e, pair_counts[(s, e)]) for s, e in unique_pairs
 
 print(f"🚴 Calcul de {len(remaining_pairs)} itinéraires restants...")
 
-if USE_PARALLEL and len(remaining_pairs) > 100:
-    print(f"🔄 Calcul parallèle sur {NUM_WORKERS} CPU")
-    # Préparer les arguments
-    args_list = [(s, e, c, G, stations_coords) for s, e, c in remaining_pairs]
+# Calcul séquentiel avec checkpoints réguliers
+for i, (start_code, end_code, count) in enumerate(tqdm(remaining_pairs, desc="Calcul itinéraires")):
+    result = calculate_single_route(start_code, end_code, count)
+    if result:
+        routes.append(result)
     
-    # Calcul parallèle avec barre de progression
-    with Pool(NUM_WORKERS) as pool:
-        results = list(tqdm(
-            pool.imap(calculate_single_route, args_list),
-            total=len(args_list),
-            desc="Calcul itinéraires"
-        ))
-    
-    # Filtrer les None
-    new_routes = [r for r in results if r is not None]
-    routes.extend(new_routes)
-    
-else:
-    # Calcul séquentiel
-    for start_code, end_code, count in tqdm(remaining_pairs, desc="Calcul itinéraires"):
-        result = calculate_single_route((start_code, end_code, count, G, stations_coords))
-        if result:
-            routes.append(result)
-        
-        # Sauvegarder un checkpoint tous les 1000 itinéraires
-        if len(routes) % 1000 == 0:
-            with open(checkpoint_file, 'wb') as f:
-                pickle.dump(routes, f)
+    # Sauvegarder un checkpoint tous les 500 itinéraires
+    if (i + 1) % 500 == 0:
+        with open(checkpoint_file, 'wb') as f:
+            pickle.dump(routes, f)
+        print(f"  💾 Checkpoint: {len(routes)} routes calculées")
 
 # Sauvegarder le checkpoint final
 with open(checkpoint_file, 'wb') as f:
@@ -215,11 +257,12 @@ print(f"✅ {len(routes)} itinéraires calculés")
 if failed_count > 0:
     print(f"⚠️  {failed_count} paires échouées ({failed_count/len(unique_pairs)*100:.1f}%)")
 
+#%%
 # ============================================================================
-# ÉTAPE 6 : Sauvegarde des itinéraires
+# ÉTAPE 7 : Sauvegarde itinéraires
 # ============================================================================
 
-print("💾 Sauvegarde des itinéraires...")
+print("\n[7/8] Sauvegarde des itinéraires...")
 gdf_routes = gpd.GeoDataFrame(routes, crs="EPSG:4326")
 gdf_routes.to_file(output_routes, driver="GeoJSON")
 print(f"✅ Fichier sauvegardé : {output_routes}")
@@ -227,12 +270,14 @@ print(f"✅ Fichier sauvegardé : {output_routes}")
 # Supprimer le checkpoint après succès
 if os.path.exists(checkpoint_file):
     os.remove(checkpoint_file)
+    print("✅ Checkpoint supprimé (succès)")
 
+#%%
 # ============================================================================
-# ÉTAPE 7 : Calcul des segments de rue avec comptage
+# ÉTAPE 8 : Calcul segments
 # ============================================================================
 
-print("🛣️  Calcul des segments de rue...")
+print("\n[8/8] Calcul des segments de rue...")
 segment_counts = defaultdict(int)
 
 for route in tqdm(routes, desc="Agrégation segments"):
@@ -244,10 +289,6 @@ for route in tqdm(routes, desc="Agrégation segments"):
         segment_counts[segment] += trip_count
 
 print(f"✅ {len(segment_counts)} segments uniques identifiés")
-
-# ============================================================================
-# ÉTAPE 8 : Sauvegarde des segments
-# ============================================================================
 
 print("💾 Sauvegarde des segments...")
 segments = []
@@ -263,6 +304,7 @@ gdf_segments = gpd.GeoDataFrame(segments, crs="EPSG:4326")
 gdf_segments.to_file(output_segments, driver="GeoJSON")
 print(f"✅ Fichier sauvegardé : {output_segments}")
 
+#%%
 # ============================================================================
 # STATISTIQUES FINALES
 # ============================================================================
@@ -273,7 +315,12 @@ print("="*60)
 print(f"Paires uniques calculées : {len(routes):,}")
 print(f"Trajets totaux affectés  : {sum(r['trip_count'] for r in routes):,}")
 print(f"Segments de rue          : {len(segments):,}")
-print(f"Passage max sur 1 segment: {max(segment_counts.values()):,}")
-print(f"Passage moyen/segment    : {sum(segment_counts.values()) / len(segment_counts):.1f}")
+if segment_counts:
+    print(f"Passage max sur 1 segment: {max(segment_counts.values()):,}")
+    print(f"Passage moyen/segment    : {sum(segment_counts.values()) / len(segment_counts):.1f}")
 print("="*60)
 print_memory_usage()
+
+print("\n🎉 TERMINÉ ! Fichiers générés :")
+print(f"  • {output_routes}")
+print(f"  • {output_segments}")
