@@ -219,11 +219,10 @@ print("\n[5/9] Configuration des scénarios de calcul...")
 # SCÉNARIO 1 : PLUS COURT CHEMIN (référence, sans pondération)
 def apply_scenario1_weights(G):
     for u, v, k, data in G.edges(keys=True, data=True):
-        # Pas de modification : on utilise directement la longueur
         data['weighted_length'] = data.get('length', 1)
     return "Plus court chemin (distance uniquement)"
 
-# SCÉNARIO 2 : FAVORISER LES PISTES CYCLABLES
+# SCÉNARIO 2 : Broach, J., Dill, J., & Gliebe, J. (2012). Where do cyclists ride? A route choice model developed with revealed preference GPS data. Transportation Research Part A: Policy and Practice, 46(10), 1730-1740. 
 def apply_scenario2_weights(G):
 
     for u, v, k, data in G.edges(keys=True, data=True):
@@ -247,45 +246,42 @@ def apply_scenario2_weights(G):
         
         # Appliquer pondération
         if has_cycleway:
-            data['weighted_length'] = base_length * 0.6  # Favoriser pistes
+            data['weighted_length'] = base_length * 0.86  # Favoriser pistes de l'ordre de 16% pour les déplacements Domicile-Travail
         elif is_major_road:
-            data['weighted_length'] = base_length * 1.3  # Pénaliser axes principaux
+            data['weighted_length'] = base_length * 1 
         else:
-            data['weighted_length'] = base_length  # Neutre
+            data['weighted_length'] = base_length  
     
     return "Scénario 2"
 
-# SCÉNARIO 3 : ÉVITER LES ROUTES SECONDAIRES
+# SCÉNARIO 3 : De Jong, T., Böcker, L., & Weber, C. (2023). Road infrastructures, spatial surroundings, and the demand and route choices for cycling: Evidence from a GPS-based mode detection study from Oslo, Norway. Environment and Planning B: Urban Analytics and City Science, 50(8), 2107-2124. Fitch, D. T., & Handy, 
 def apply_scenario3_weights(G):
-    """
-    Scénario 3 : Privilégier les routes rapides et éviter ruelles.
-    
-    Pondérations :
-    - Routes principales : facteur 0.7 (favoriser, -30%)
-    - Pistes cyclables : facteur 0.8 (légèrement favoriser, -20%)
-    - Routes résidentielles : facteur 1.4 (pénaliser, +40%)
-    - Autres routes : facteur 1.0 (neutre)
-    """
     for u, v, k, data in G.edges(keys=True, data=True):
         base_length = data.get('length', 1)
         
-        highway_type = data.get('highway')
+        # Détecter piste cyclable
+        has_cycleway = False
+        if 'cycleway' in data and data['cycleway'] not in [None, 'no']:
+            has_cycleway = True
+        if 'cycleway:right' in data and data['cycleway:right'] not in [None, 'no']:
+            has_cycleway = True
+        if 'cycleway:left' in data and data['cycleway:left'] not in [None, 'no']:
+            has_cycleway = True
+        if 'highway' in data and data['highway'] in ['cycleway', 'path']:
+            has_cycleway = True
         
-        # Routes principales (rapides)
-        if highway_type in ['primary', 'secondary', 'trunk']:
-            data['weighted_length'] = base_length * 0.7
+        # Détecter route principale
+        is_major_road = False
+        if 'highway' in data and data['highway'] in ['primary', 'trunk', 'motorway']:
+            is_major_road = True
         
-        # Pistes cyclables (légèrement favorisées)
-        elif highway_type in ['cycleway', 'path']:
-            data['weighted_length'] = base_length * 0.8
-        
-        # Routes résidentielles (pénalisées)
-        elif highway_type in ['residential', 'living_street', 'unclassified']:
-            data['weighted_length'] = base_length * 1.4
-        
-        # Autres
+        # Appliquer pondération
+        if has_cycleway:
+            data['weighted_length'] = base_length * 0.41  # Favoriser bcp les infras sympatiques pour les cyclistes
+        elif is_major_road:
+            data['weighted_length'] = base_length * 1 
         else:
-            data['weighted_length'] = base_length
+            data['weighted_length'] = base_length  
     
     return "Scénario 3"
 
