@@ -1,30 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Dec 15 16:46:04 2025
-
-@author: Maxence
+Script pour exporter en une fois les IDs des vélos depuis la base de données AWS DynamoDB et l'enregistrer en csv.
 """
 
+# Importer les packages utiles
 import boto3
 import pandas as pd
 
-# -----------------------
-# CONFIG AWS (EN DUR)
-# -----------------------
+# Configuration clés AWS (clés ont été enlevées ici pour des raisons de sécurité)
 AWS_ACCESS_KEY_ID = "XXXXXXXXXXXXXXXXXXXXXXXXXXxx"
 AWS_SECRET_ACCESS_KEY = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 REGION = "eu-north-1"
 
-
-# -----------------------
-# CONFIG
-# -----------------------
+# Configurer les inputs et outputs
 TABLE_NAME = "VelibBikeIds"
 OUTPUT_FILE = "bikes_id_final.csv"
 
-# -----------------------
-# CONNEXION DYNAMODB
-# -----------------------
+# Connexion à la base de données DynamoDB
 dynamodb = boto3.resource(
     "dynamodb",
     aws_access_key_id=AWS_ACCESS_KEY_ID,
@@ -34,9 +26,7 @@ dynamodb = boto3.resource(
 
 table = dynamodb.Table(TABLE_NAME)
 
-# -----------------------
-# SCAN COMPLET (PAGINÉ)
-# -----------------------
+# Scan complet
 items = []
 
 response = table.scan()
@@ -50,11 +40,9 @@ while "LastEvaluatedKey" in response:
 
 print(f"✅ {len(items)} lignes récupérées")
 
-# -----------------------
-# DATAFRAME + EXPORT CSV
-# -----------------------
+# Transformation en dataframe puis export en csv en local
 df = pd.DataFrame(items)
-# df = df.iloc[:, 1:] get rid of "last seen column"
+# df = df.iloc[:, 1:] effacer "last seen column" si nécessaire
 df.to_csv("bike_id_final_last_seen.csv", index=False, encoding="utf-8")
 
-print(f"🎉 Export terminé : {OUTPUT_FILE}")
+
