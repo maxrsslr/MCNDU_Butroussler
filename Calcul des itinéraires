@@ -21,7 +21,7 @@ import uuid
 # CONFIGURATION
 # ============================================================================
 
-base_dir = "/Users/titou/Documents/Tradd 22/MCDNU/Fichiers" #seule chose à modifier pour le mettre sur ton PC
+base_dir = "/Users/titou/Documents/Tradd 22/MCDNU/Fichiers" 
 stations_file = f"{base_dir}/velib-emplacement-des-stations.json"
 trajets_file = f"{base_dir}/stats_bike_82259_noel.json" #Mettre le bon fichier
 output_files = {
@@ -47,7 +47,7 @@ nodes_cache_file = f"{base_dir}/station_nodes_cache.pkl"
 
 # Paramètres
 MIN_TRIP_COUNT = 1
-DEBUG_MODE = False  # Mettre True pour tester avec 1000 trajets
+DEBUG_MODE = False  
 DEBUG_SAMPLE_SIZE = 1000
 
 print("="*70)
@@ -131,7 +131,7 @@ for bike in trajets_data:
 
 # Mode DEBUG
 if DEBUG_MODE:
-    print(f"⚠️  MODE DEBUG : échantillonnage de {DEBUG_SAMPLE_SIZE} paires")
+    print(f"MODE DEBUG : échantillonnage de {DEBUG_SAMPLE_SIZE} paires")
     import random
     all_pairs = list(pair_counts.items())
     random.shuffle(all_pairs)
