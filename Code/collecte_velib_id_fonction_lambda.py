@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+
+"""
+Script pour collecter les ID des vélibs via AWS Lambda avec un stockage de la collecte sur AWS DynamoDB
+
+"""
+
+# importer les packages utiles 
 import os
 import requests
 import boto3
@@ -10,10 +17,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Variables d'environnement (à configurer dans Lambda)
+# Variables d'environnement (à configurer aussi dans Lambda)
 STATIONS_URL = os.getenv("STATIONS_URL", "https://tdqr.ovh/api/stations")
 BIKES_URL_TEMPLATE = os.getenv("BIKES_URL_TEMPLATE", "https://tdqr.ovh/api/bikes/station/{station_id}")
 DYNAMODB_TABLE = os.getenv("DYNAMODB_TABLE", "VelibBikeIds")
+# Définir un user agent string afin d'être bien identifié par le propriétaire du serveur. 
 USER_AGENT_STRING = os.getenv("USER_AGENT_STRING", "VelibCollector_Academic_Project (https://github.com/maxrsslr/MCNDU_Butroussler)")
 MAX_WORKERS = int(os.getenv("MAX_WORKERS", 40))  
 
@@ -28,6 +36,7 @@ logger.info(f"MAX_WORKERS: {MAX_WORKERS}")
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(DYNAMODB_TABLE)
 
+# Fonction pour récupérer les stations 
 def get_stations():
     try:
         logger.info("Récupération des stations...")
@@ -43,6 +52,7 @@ def get_stations():
         logger.error(f"Erreur lors de la récupération des stations : {e}")
         return []
 
+# Fonction pour récupérer les IDs pour chaque station
 def get_bikes_for_station(session, station_id):
     url = BIKES_URL_TEMPLATE.format(station_id=station_id)
     try:
@@ -57,6 +67,7 @@ def get_bikes_for_station(session, station_id):
         logger.warning(f"Erreur pour la station {station_id} : {e}")
         return []
 
+# Fonction pour sauvegarder les IDs dans la DynaboDB, comme une primary key est l'ID, alors automatiquement pas de doublons. 
 def save_bike_ids_to_dynamodb(bike_ids):
     try:
         with table.batch_writer() as batch:
@@ -69,7 +80,8 @@ def save_bike_ids_to_dynamodb(bike_ids):
                 )
     except Exception as e:
         logger.error(f"Erreur lors de la sauvegarde dans DynamoDB : {e}")
-        
+
+# Fonction pour compter le nombre de IDs déjà collectés dans la base de données
 def count_dynamodb_items():
     try:
         response = table.scan(Select='COUNT')
@@ -80,6 +92,7 @@ def count_dynamodb_items():
         logger.error(f"Erreur lors du comptage des objets : {e}")
         return 0
 
+# Fonction pour tout exécuter
 def lambda_handler(event, context):
     try:
         # Récupérer les stations
@@ -117,3 +130,4 @@ def lambda_handler(event, context):
             'statusCode': 500,
             'body': f"Erreur lors de l'exécution : {str(e)}"
         }
+
