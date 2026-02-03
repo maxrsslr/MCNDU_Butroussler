@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 Script permettant le calcul des itinéraires 
-@author: titou
 """
 import json
 import osmnx as ox
