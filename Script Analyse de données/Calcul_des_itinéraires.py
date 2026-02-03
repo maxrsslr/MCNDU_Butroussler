@@ -1,8 +1,6 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Jan 22 18:04:42 2026
-
+Script permettant le calcul des itinéraires 
 @author: titou
 """
 import json
