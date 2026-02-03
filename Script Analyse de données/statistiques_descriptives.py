@@ -117,15 +117,15 @@ stats_summary = pd.DataFrame({
         df_standard['distance_km'].median(),
         df_standard[df_standard['average_speed_kmh'] > 0]['average_speed_kmh'].median()
     ],
-    'Min': [
-        df_standard['duration_minutes'].min(),
-        df_standard['distance_km'].min(),
-        df_standard[df_standard['average_speed_kmh'] > 0]['average_speed_kmh'].min()
+    'Q1 (25%)': [
+        df_standard['duration_minutes'].quantile(0.25),
+        df_standard['distance_km'].quantile(0.25),
+        df_standard[df_standard['average_speed_kmh'] > 0]['average_speed_kmh'].quantile(0.25)
     ],
-    'Max': [
-        df_standard['duration_minutes'].max(),
-        df_standard['distance_km'].max(),
-        df_standard['average_speed_kmh'].max()
+    'Q3 (75%)': [
+        df_standard['duration_minutes'].quantile(0.75),
+        df_standard['distance_km'].quantile(0.75),
+        df_standard[df_standard['average_speed_kmh'] > 0]['average_speed_kmh'].quantile(0.75)
     ],
     'Écart-type': [
         df_standard['duration_minutes'].std(),
@@ -361,6 +361,7 @@ ax.set_title('Top 10 Paires Origine-Destination', fontsize=14, fontweight='bold'
 ax.grid(True, alpha=0.3, axis='x')
 plt.tight_layout()
 plt.savefig('05_top_od.png', dpi=300, bbox_inches='tight')
+
 
 
 
