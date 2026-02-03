@@ -14,13 +14,10 @@ import os
 import psutil
 import uuid
 
-# ============================================================================
-# CONFIGURATION
-# ============================================================================
-
-base_dir = "/Users/titou/Documents/Tradd 22/MCDNU/Fichiers" 
+#chargement des données
+base_dir = "/Users/XXXXX/XXXXXX/Tradd 22/MCDNU/Fichiers" #A adapter
 stations_file = f"{base_dir}/velib-emplacement-des-stations.json"
-trajets_file = f"{base_dir}/stats_bike_82259_noel.json" #Mettre le bon fichier
+trajets_file = f"{base_dir}/stats_bike_82259_noel.json" 
 output_files = {
     'scenario1': {
         'routes': f"{base_dir}/velib_routes_scenario1.geojson",
@@ -42,7 +39,7 @@ output_files = {
 graph_cache_file = f"{base_dir}/graph_cache.pkl"
 nodes_cache_file = f"{base_dir}/station_nodes_cache.pkl"
 
-# Paramètres
+# Paramètres de calcul des trajets
 MIN_TRIP_COUNT = 1
 DEBUG_MODE = False  
 DEBUG_SAMPLE_SIZE = 1000
@@ -51,18 +48,13 @@ print("="*70)
 print("CALCUL ITINÉRAIRES VÉLIB - VERSION MULTI-SCÉNARIOS")
 print("="*70)
 
-# ============================================================================
-# MONITORING
-# ============================================================================
-
+#affichage de la RAM utilisée pour ce script
 def print_memory_usage():
     mem = psutil.virtual_memory()
     print(f"RAM : {mem.used/1e9:.1f}/{mem.total/1e9:.1f} GB ({mem.percent:.1f}%)")
 
 #%%
-# ============================================================================
 # ÉTAPE 1 : Chargement des données
-# ============================================================================
 
 print("\n[1/9] Chargement des données...")
 print_memory_usage()
@@ -73,8 +65,8 @@ with open(stations_file, 'r', encoding='utf-8') as f:
 with open(trajets_file, 'r', encoding='utf-8') as f:
     trajets_data = json.load(f)
 
-# Harmoniser les IDs et créer un index des trajets
-trajets_index = {}  # (start, end) -> liste de stats
+# Harmoniser les IDs et créer un index des trajets 
+trajets_index = {}  
 for bike in trajets_data:
     for stat in bike['stats']:
         if stat.get('start_station_id'):
@@ -93,9 +85,8 @@ print(f" {len(trajets_index)} paires de stations avec trajets")
 print_memory_usage()
 
 #%%
-# ============================================================================
 # ÉTAPE 2 : Extraction coordonnées stations
-# ============================================================================
+
 
 print("\n[2/9] Extraction des coordonnées des stations...")
 
@@ -110,9 +101,7 @@ for s in stations_data:
 print(f" {len(stations_coords)} stations chargées")
 
 #%%
-# ============================================================================
 # ÉTAPE 3 : Extraction paires uniques
-# ============================================================================
 
 print("\n[3/9] Analyse des trajets...")
 
@@ -126,7 +115,6 @@ for bike in trajets_data:
             if start in stations_coords and end in stations_coords and start != end:
                 pair_counts[(start, end)] += 1
 
-# Mode DEBUG
 if DEBUG_MODE:
     print(f"MODE DEBUG : échantillonnage de {DEBUG_SAMPLE_SIZE} paires")
     import random
@@ -144,12 +132,11 @@ print(f" Temps estimé : {len(unique_pairs) * 3 * 0.3 / 60:.0f}-{len(unique_pair
 print_memory_usage()
 
 #%%
-# ============================================================================
 # ÉTAPE 4 : Chargement graphe OSM (AVEC CACHE)
-# ============================================================================
 
 print("\n[4/9] Chargement du graphe routier...")
 
+#téléchargement des zones nécessaires à notre analyse
 place = [
     "Paris, France",
     "Val-de-marne, France",
@@ -183,9 +170,7 @@ else:
 print_memory_usage()
 
 #%%
-# ============================================================================
 # ÉTAPE 4bis : Pré-calcul des nœuds OSM (AVEC CACHE)
-# ============================================================================
 
 print("\n[4bis/9] Pré-calcul des nœuds OSM pour chaque station...")
 
@@ -207,13 +192,11 @@ else:
     print(f"{len(station_nodes)} nœuds calculés et sauvegardés")
 
 #%%
-# ============================================================================
 # ÉTAPE 5 : DÉFINITION DES SCÉNARIOS (PONDÉRATIONS)
-# ============================================================================
 
 print("\n[5/9] Configuration des scénarios de calcul...")
 
-# SCÉNARIO 1 : PLUS COURT CHEMIN (référence, sans pondération)
+# SCÉNARIO 1 : PLUS COURT CHEMIN (référence, sans pondération, package OSMnx simple)
 def apply_scenario1_weights(G):
     for u, v, k, data in G.edges(keys=True, data=True):
         data['weighted_length'] = data.get('length', 1)
@@ -243,7 +226,7 @@ def apply_scenario2_weights(G):
         
         # Appliquer pondération
         if has_cycleway:
-            data['weighted_length'] = base_length * 0.86  # Favoriser pistes de l'ordre de 16% pour les déplacements Domicile-Travail
+            data['weighted_length'] = base_length * 0.86  # Favoriser pistes de l'ordre de 16% pour les déplacements Domicile-Travail comme le dit l'article
         elif is_major_road:
             data['weighted_length'] = base_length * 1 
         else:
@@ -274,7 +257,7 @@ def apply_scenario3_weights(G):
         
         # Appliquer pondération
         if has_cycleway:
-            data['weighted_length'] = base_length * 0.41  # Favoriser bcp les infras sympatiques pour les cyclistes
+            data['weighted_length'] = base_length * 0.41  # Favoriser de 59% les pistes cyclables
         elif is_major_road:
             data['weighted_length'] = base_length * 1 
         else:
@@ -304,9 +287,7 @@ for scenario_id, config in SCENARIOS.items():
     print(f"   • {config['name']}")
 
 #%%
-# ============================================================================
-# ÉTAPE 6 : Fonction de calcul d'itinéraire
-# ============================================================================
+# ETAPE 6 : Création des statistiques
 
 def calculate_route_with_scenario(start_code, end_code, scenario_id, trajets_list):
     """Calcule un itinéraire selon le scénario spécifié."""
@@ -368,9 +349,7 @@ def calculate_route_with_scenario(start_code, end_code, scenario_id, trajets_lis
         return None
 
 #%%
-# ============================================================================
-# ÉTAPE 7 : Calcul pour chaque scénario
-# ============================================================================
+# ETAPE 7 : Calcule des itinéraires selon les scénarios
 
 print("\n[7/9] Calcul des itinéraires pour chaque scénario...")
 
@@ -435,9 +414,7 @@ for scenario_id, config in SCENARIOS.items():
     del routes, gdf_routes
 
 #%%
-# ============================================================================
 # ÉTAPE 8 : Calcul segments pour chaque scénario
-# ============================================================================
 
 print("\n[8/9] Calcul des segments de rue pour chaque scénario...")
 
