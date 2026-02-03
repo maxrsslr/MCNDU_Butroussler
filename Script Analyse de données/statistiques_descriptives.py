@@ -1,39 +1,32 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Feb  3 11:59:16 2026
-
-@author: Maxence
+Ce Script permet d'analyser de manière descriptive nos données
 """
 
+# Importer les packages nécessaires
 import json
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime
-import warnings
-warnings.filterwarnings('ignore')
 
-# Configuration du style
+# Configuration du style pour les graphiques 
 plt.style.use('seaborn-v0_8-whitegrid')
 sns.set_palette("husl")
 plt.rcParams['font.size'] = 10
 
-# ============================================================================
-# CONFIGURATION - À ADAPTER
-# ============================================================================
-base_dir = "."  # Modifier selon votre chemin
+# Configuration des chemins
+base_dir = "C:/Users/XXXX/XXXX/Documents/ENPC/MCNDU/Project/Données" # A ADAPTER
 stations_file = f"{base_dir}/velib-emplacement-des-stations.json"
 trajets_file = f"{base_dir}/bike_stats_backup_02.01.2026.json"
 
-# ============================================================================
-# CHARGEMENT DES DONNÉES
-# ============================================================================
-
+## Charger les données
 # Charger les stations
 with open(stations_file, 'r', encoding='utf-8') as f:
     stations_data = json.load(f)
 
+# Créer un jeu de données à partir du fichier json
 stations_df = pd.DataFrame([
     {
         'station_code': str(s.get('stationcode')),
@@ -50,13 +43,13 @@ print(f"\n {len(stations_df)} stations chargées")
 # Créer un dictionnaire station_code -> nom pour recherche rapide
 station_names = dict(zip(stations_df['station_code'], stations_df['name']))
 
-# Charger les trajets (liste de vélos avec leurs stats)
+# Charger les trajets 
 with open(trajets_file, 'r', encoding='utf-8') as f:
     data = json.load(f)
 
 print(f"\n {len(data)} vélos chargés")
 
-# Créer un DataFrame à partir de tous les trajets
+# Créer un DataFrame à partir de tous les trajets du fichier json
 rides = []
 for bike in data:
     bike_id = bike.get('bike_id')
@@ -78,11 +71,11 @@ for bike in data:
 df = pd.DataFrame(rides)
 print(f" {len(df)} trajets extraits")
 
-# Convertir les dates et ajuster au fuseau horaire de Paris
+# Convertir les dates et ajuster au fuseau horaire de Paris (les données extraites sont en GMT +1)
 df['start_time'] = pd.to_datetime(df['start_time']).dt.tz_convert('Europe/Paris')
 df['end_time'] = pd.to_datetime(df['end_time']).dt.tz_convert('Europe/Paris')
 
-# Ajouter des colonnes dérivées
+# Ajouter des colonnes dérivées pour une meilleure lisibilité
 df['date'] = df['start_time'].dt.date
 df['hour'] = df['start_time'].dt.hour
 df['day_of_week'] = df['start_time'].dt.dayofweek
@@ -102,7 +95,7 @@ df = df[
 print(f" {len(df)} trajets complétés valides")
 print(f" Période: du {df['start_time'].min().date()} au {df['start_time'].max().date()}")
 
-# Séparer trajets standard et boomerang
+# Séparer trajets standard et boomerang (+ trajets avec distance <0)
 df_standard = df[~df['is_boomerang'] &
                  (df['distance_meters'] > 0 )].copy()
 df_boomerang = df[df['is_boomerang']].copy()
@@ -110,12 +103,7 @@ df_boomerang = df[df['is_boomerang']].copy()
 print(f"\n   - Trajets standard: {len(df_standard)}")
 print(f"   - Trajets boomerang: {len(df_boomerang)} ({len(df_boomerang)/len(df)*100:.1f}%)")
 
-# ============================================================================
-# STATISTIQUES GÉNÉRALES (SANS BOOMERANG)
-# ============================================================================
-print("\n" + "=" * 80)
-print(" STATISTIQUES GÉNÉRALES (TRAJETS STANDARD UNIQUEMENT)")
-print("=" * 80)
+## Stats générales (sans boomerang)
 
 stats_summary = pd.DataFrame({
     'Métrique': ['Durée (min)', 'Distance (km)', 'Vitesse (km/h)'],
@@ -148,18 +136,12 @@ stats_summary = pd.DataFrame({
 
 print(stats_summary.to_string(index=False))
 
-# ============================================================================
-# ANALYSE TEMPORELLE
-# ============================================================================
-print("\n" + "=" * 80)
-print("⏰ ANALYSE TEMPORELLE")
-print("=" * 80)
-
+## Analyse temporelle des trajets 
 # Trajets par jour de la semaine
 days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 trips_by_day = df_standard.groupby('day_name').size().reindex(days_order)
 
-print("\n📅 Trajets par jour de la semaine:")
+print("\n Trajets par jour de la semaine:")
 for day in days_order:
     count = trips_by_day.get(day, 0)
     jour_fr = {'Monday': 'Lundi', 'Tuesday': 'Mardi', 'Wednesday': 'Mercredi', 
@@ -170,15 +152,14 @@ for day in days_order:
 # Moyenne semaine vs weekend
 weekday_avg = df_standard[~df_standard['is_weekend']].groupby('date').size().mean()
 weekend_avg = df_standard[df_standard['is_weekend']].groupby('date').size().mean()
-print(f"\n📊 Moyenne trajets/jour:")
+print(f"\n Moyenne trajets/jour:")
 print(f"  Lundi-Vendredi: {weekday_avg:.2f} trajets/jour")
 print(f"  Weekend:        {weekend_avg:.2f} trajets/jour")
 
-# ============================================================================
-# ANALYSE DES STATIONS
-# ============================================================================
 
-## Top 15 stations avec le plus gd nb de départs par jour en moyenne
+## Analyse des stations
+
+## Top 10 stations avec le plus gd nb de départs par jour en moyenne
 
 # Grouper par station de départ et date pour calculer le nombre de départs par jour
 daily_departures = df_standard.groupby(['start_station_id', 'date']).size().reset_index(name='daily_departures')
@@ -206,7 +187,7 @@ average_daily_arrivals = round(daily_arrivals.groupby('end_station_id')['daily_a
 # Trier les stations par ordre décroissant de la moyenne des arrivées par jour
 average_daily_arrivals = average_daily_arrivals.sort_values(by='daily_arrivals', ascending=False)
 
-# Afficher le top 15 des stations avec le plus grand nombre d'arrivées par jour en moyenne
+# Afficher le top 10 des stations avec le plus grand nombre d'arrivées par jour en moyenne
 print("\n Top 10 stations avec le plus grand nombre d'arrivées par jour en moyenne:")
 for i, row in average_daily_arrivals.head(10).iterrows():
     station_name = station_names.get(row['end_station_id'], 'Inconnue')
@@ -237,30 +218,21 @@ for i, row in average_daily_traffic.head(10).iterrows():
     station_name = station_names.get(row['station_id'], 'Inconnue')
     print(f"  {station_name[:50]:.<52} {row['total_traffic']}")
 
+## Analyse Origine-Destination (OD)
 
-
-
-
-# ============================================================================
-# ANALYSE ORIGINE-DESTINATION
-# ============================================================================
-print("\n" + "=" * 80)
-print("🗺️  TOP PAIRES ORIGINE-DESTINATION")
-print("=" * 80)
-
+# Créer la matrice d'OD avec les paires de stations de départ et station d'arrivée. 
 od_matrix = df_standard.groupby(['start_station_id', 'end_station_id']).size().reset_index(name='trips')
 od_matrix = od_matrix.sort_values('trips', ascending=False)
 
-print("\n🔝 Top 15 paires O-D les plus fréquentes:")
+print("\ Top 15 paires O-D les plus fréquentes:")
 for i, row in od_matrix.head(15).iterrows():
     start_name = station_names.get(row['start_station_id'], row['start_station_id'])[:40]
     end_name = station_names.get(row['end_station_id'], row['end_station_id'])[:40]
     print(f"{i+1:2d}. {start_name} → {end_name}")
     print(f"    ({row['trips']} trajets)")
 
-# ============================================================================
-# FONCTION D'ABRÉVIATION DES NOMS
-# ============================================================================
+
+## Fonction d'abbréviation des noms pour avoir des graphiques plus propres
 def abbreviate_station(name, max_length=25):
     """Abrège intelligemment un nom de station"""
     if len(name) <= max_length:
@@ -287,16 +259,10 @@ def abbreviate_station(name, max_length=25):
     
     return name
 
-# ============================================================================
-# VISUALISATIONS
-# ============================================================================
-print("\n" + "=" * 80)
-print("📊 GÉNÉRATION DES GRAPHIQUES...")
-print("=" * 80)
+## Graphiques
 
-# ============================================================================
-# 1. Distribution de la distance des trajets
-# ============================================================================
+# Distribution de la distance des trajets - histogramme
+
 fig, ax = plt.subplots(figsize=(12, 6))
 df_standard[df_standard['distance_meters'] > 0]['distance_meters'].hist(bins=50, edgecolor='black', alpha=1, color='cornflowerblue')
 plt.axvline(df_standard['distance_meters'].mean(), color='red', linestyle='--', linewidth=2,
@@ -311,11 +277,9 @@ plt.legend(fontsize=11)
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.savefig('01_distribution_distance.png', dpi=300, bbox_inches='tight')
-print("✅ Sauvegardé: 01_distribution_distance.png")
 
-# ============================================================================
-# 2. Trajets par jour de la semaine
-# ============================================================================
+# Nombre de trajets par jour de la semaine sur la période de collecte - diagramme à barres
+
 fig, ax = plt.subplots(figsize=(12, 6))
 days_fr = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
 colors = ['lightgreen']
@@ -325,23 +289,12 @@ ax.set_xlabel('Jour de la semaine', fontsize=12, fontweight='bold')
 ax.set_ylabel('Nombre de trajets', fontsize=12, fontweight='bold')
 ax.set_title('Nombre de Trajets par Jour de la Semaine', fontsize=14, fontweight='bold')
 ax.grid(True, alpha=0.3, axis='y')
-
-# Ajouter les valeurs sur les barres
-# for bar in bars:
-#     height = bar.get_height()
-#     ax.text(bar.get_x() + bar.get_width()/2., height,
-#             f'{int(height)}',
-#             ha='center', va='bottom', fontweight='bold')
-
 plt.tight_layout()
 plt.savefig('02_trajets_par_jour.png', dpi=300, bbox_inches='tight')
-print("✅ Sauvegardé: 02_trajets_par_jour.png")
 
-# ============================================================================
-# 3. Trajets par heure - Semaine vs Weekend
-# ============================================================================
+# Trajets par heure - Semaine vs Weekend - diagramme à barres
+
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 10))
-
 # Semaine
 weekday_hourly = df_standard[~df_standard['is_weekend']].groupby('hour').size()
 hours = range(24)
@@ -353,7 +306,6 @@ ax1.set_title('Trajets par Heure - SEMAINE (Lundi-Vendredi)', fontsize=14, fontw
 ax1.set_xticks(hours)
 ax1.set_xticklabels([f'{h:02d}h' for h in hours], rotation=45, ha='right')
 ax1.grid(True, alpha=0.3, axis='y')
-
 # Weekend
 weekend_hourly = df_standard[df_standard['is_weekend']].groupby('hour').size()
 weekend_counts = [weekend_hourly.get(h, 0) for h in hours]
@@ -364,14 +316,10 @@ ax2.set_title('Trajets par Heure - WEEKEND (Samedi-Dimanche)', fontsize=14, font
 ax2.set_xticks(hours)
 ax2.set_xticklabels([f'{h:02d}h' for h in hours], rotation=45, ha='right')
 ax2.grid(True, alpha=0.3, axis='y')
-
 plt.tight_layout()
 plt.savefig('03_trajets_par_heure.png', dpi=300, bbox_inches='tight')
-print("✅ Sauvegardé: 03_trajets_par_heure.png")
 
-# ============================================================================
-# 4. Top 6 stations les plus utilisées
-# ============================================================================
+# Top 6 des stations avec le plus de trafic
 
 # Ajouter une colonne pour les noms des stations dans le DataFrame average_daily_traffic
 average_daily_traffic['name'] = average_daily_traffic['station_id'].map(station_names)
@@ -387,19 +335,15 @@ ax.set_yticklabels(station_labels[::-1], fontsize=9)
 ax.set_xlabel('Nombre d\'utilisations (départs + arrivées) en moyenne par jour', fontsize=12, fontweight='bold')
 ax.set_title('Top 6 Stations les Plus Utilisées', fontsize=14, fontweight='bold')
 ax.grid(True, alpha=0.3, axis='x')
-
 plt.tight_layout()
 plt.savefig('04_top_stations.png', dpi=300, bbox_inches='tight')
-print("✅ Sauvegardé: 04_top_stations.png")
 
 
 
-# ============================================================================
-# 5. Top 20 paires Origine-Destination
-# ============================================================================
+# Top 20 paires d'OD - diagramme à barres
 fig, ax = plt.subplots(figsize=(15, 8))
 top10_od = od_matrix.head(10)
-
+# mettre les noms des stations
 od_labels = []
 for _, row in top10_od.iterrows():
     start_name = station_names.get(row['start_station_id'], row['start_station_id'])
@@ -415,10 +359,9 @@ ax.set_yticklabels(od_labels[::-1], fontsize=8)
 ax.set_xlabel('Nombre de trajets', fontsize=12, fontweight='bold')
 ax.set_title('Top 10 Paires Origine-Destination', fontsize=14, fontweight='bold')
 ax.grid(True, alpha=0.3, axis='x')
-
 plt.tight_layout()
 plt.savefig('05_top_od.png', dpi=300, bbox_inches='tight')
-print("✅ Sauvegardé: 05_top_od.png")
+
 
 
 
