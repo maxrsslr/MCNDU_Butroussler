@@ -466,9 +466,7 @@ for scenario_id in SCENARIOS.keys():
     del gdf_routes, gdf_segments, segments
 
 #%%
-# ============================================================================
-# STATISTIQUES FINALES
-# ============================================================================
+# STATISTIQUES FINALES : afficher dans la console Spyder
 
 print("\n" + "="*70)
 print("STATISTIQUES FINALES PAR SCÉNARIO")
