@@ -14,10 +14,10 @@ import os
 import psutil
 import uuid
 
-#chargement des données
-base_dir = "/Users/XXXXX/XXXXXX/Tradd 22/MCDNU/Fichiers" #A adapter
+# Définir les variables et les emplacements 
+base_dir = "/Users/XXXXX/XXXXXX/Tradd 22/MCDNU/Fichiers" # A adapter
 stations_file = f"{base_dir}/velib-emplacement-des-stations.json"
-trajets_file = f"{base_dir}/stats_bike_82259_noel.json" 
+trajets_file = f"{base_dir}/bike_stats_final_02.01.2026.json" 
 output_files = {
     'scenario1': {
         'routes': f"{base_dir}/velib_routes_scenario1.geojson",
@@ -53,8 +53,7 @@ def print_memory_usage():
     mem = psutil.virtual_memory()
     print(f"RAM : {mem.used/1e9:.1f}/{mem.total/1e9:.1f} GB ({mem.percent:.1f}%)")
 
-#%%
-# ÉTAPE 1 : Chargement des données
+#ÉTAPE 1 : Chargement des données
 
 print("\n[1/9] Chargement des données...")
 print_memory_usage()
@@ -84,7 +83,7 @@ for bike in trajets_data:
 print(f" {len(trajets_index)} paires de stations avec trajets")
 print_memory_usage()
 
-#%%
+
 # ÉTAPE 2 : Extraction coordonnées stations
 
 
@@ -100,7 +99,7 @@ for s in stations_data:
 
 print(f" {len(stations_coords)} stations chargées")
 
-#%%
+
 # ÉTAPE 3 : Extraction paires uniques
 
 print("\n[3/9] Analyse des trajets...")
@@ -131,8 +130,8 @@ print(f" Temps estimé : {len(unique_pairs) * 3 * 0.3 / 60:.0f}-{len(unique_pair
 
 print_memory_usage()
 
-#%%
-# ÉTAPE 4 : Chargement graphe OSM (AVEC CACHE)
+
+# ÉTAPE 4 : Chargement graphe OSM (AVEC CACHE afin de ne pas devoir le charger à chaque fois, ce graphe n'a pas vocation à changer)
 
 print("\n[4/9] Chargement du graphe routier...")
 
@@ -169,8 +168,8 @@ else:
 
 print_memory_usage()
 
-#%%
-# ÉTAPE 4bis : Pré-calcul des nœuds OSM (AVEC CACHE)
+
+# ÉTAPE 4bis : Pré-calcul des nœuds OSM (AVEC CACHE afin de ne pas devoir le refaire à chaque fois)
 
 print("\n[4bis/9] Pré-calcul des nœuds OSM pour chaque station...")
 
@@ -191,7 +190,7 @@ else:
         pickle.dump(station_nodes, f)
     print(f"{len(station_nodes)} nœuds calculés et sauvegardés")
 
-#%%
+
 # ÉTAPE 5 : DÉFINITION DES SCÉNARIOS (PONDÉRATIONS)
 
 print("\n[5/9] Configuration des scénarios de calcul...")
@@ -286,7 +285,7 @@ print("3 scénarios configurés :")
 for scenario_id, config in SCENARIOS.items():
     print(f"   • {config['name']}")
 
-#%%
+
 # ETAPE 6 : Création des statistiques
 
 def calculate_route_with_scenario(start_code, end_code, scenario_id, trajets_list):
@@ -345,17 +344,17 @@ def calculate_route_with_scenario(start_code, end_code, scenario_id, trajets_lis
         return route_data
         
     except Exception as e:
-        print(f"  ⚠️  Erreur {start_code}→{end_code} ({scenario_id}): {e}")
+        print(f"    Erreur {start_code}→{end_code} ({scenario_id}): {e}")
         return None
 
-#%%
+
 # ETAPE 7 : Calcule des itinéraires selon les scénarios
 
 print("\n[7/9] Calcul des itinéraires pour chaque scénario...")
 
 for scenario_id, config in SCENARIOS.items():
     print(f"\n{'='*70}")
-    print(f"🚴 {config['name']}")
+    print(f" {config['name']}")
     print(f"   {config['description']}")
     print(f"{'='*70}")
     
@@ -366,7 +365,7 @@ for scenario_id, config in SCENARIOS.items():
     # Charger checkpoint si existe
     checkpoint_file = output_files[scenario_id]['checkpoint']
     if os.path.exists(checkpoint_file):
-        print("📂 Checkpoint trouvé, chargement...")
+        print(" Checkpoint trouvé, chargement...")
         with open(checkpoint_file, 'rb') as f:
             routes = pickle.load(f)
         print(f"{len(routes)} itinéraires déjà calculés")
@@ -391,7 +390,7 @@ for scenario_id, config in SCENARIOS.items():
         if (i + 1) % 500 == 0:
             with open(checkpoint_file, 'wb') as f:
                 pickle.dump(routes, f)
-            print(f"  💾 Checkpoint: {len(routes)} routes")
+            print(f"   Checkpoint: {len(routes)} routes")
     
     # Sauvegarder checkpoint final
     with open(checkpoint_file, 'wb') as f:
@@ -413,7 +412,7 @@ for scenario_id, config in SCENARIOS.items():
     # Libérer mémoire
     del routes, gdf_routes
 
-#%%
+
 # ÉTAPE 8 : Calcul segments pour chaque scénario
 
 print("\n[8/9] Calcul des segments de rue pour chaque scénario...")
@@ -468,12 +467,8 @@ for scenario_id in SCENARIOS.keys():
 #%%
 # STATISTIQUES FINALES : afficher dans la console Spyder
 
-print("\n" + "="*70)
-print("STATISTIQUES FINALES PAR SCÉNARIO")
-print("="*70)
-
 for scenario_id, config in SCENARIOS.items():
-    print(f"\n🚴 {config['name']}:")
+    print(f"\n {config['name']}:")
     
     routes_file = output_files[scenario_id]['routes']
     segments_file = output_files[scenario_id]['segments']
