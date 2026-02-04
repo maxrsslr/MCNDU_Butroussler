@@ -19,7 +19,7 @@ plt.rcParams['font.size'] = 10
 # Configuration des chemins
 base_dir = "C:/Users/XXXX/XXXX/Documents/ENPC/MCNDU/Project/Données" # A ADAPTER
 stations_file = f"{base_dir}/velib-emplacement-des-stations.json"
-trajets_file = f"{base_dir}/bike_stats_backup_02.01.2026.json"
+trajets_file = f"{base_dir}/bike_stats_final_02.01.2026.json"
 
 ## Charger les données
 # Charger les stations
@@ -361,6 +361,7 @@ ax.set_title('Top 10 Paires Origine-Destination', fontsize=14, fontweight='bold'
 ax.grid(True, alpha=0.3, axis='x')
 plt.tight_layout()
 plt.savefig('05_top_od.png', dpi=300, bbox_inches='tight')
+
 
 
 
