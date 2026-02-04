@@ -2,6 +2,6 @@
 
 *Janvier 2026*
 
-*Titouan Butruille-Rio, Marius Roudil, Maxence Rössler* - *ENPC*
+*Titouan Butruille-Rio, Maxence Rössler, Marius Roudil, * - *ENPC*
 
 #### Ce repository est une annexe du Rapport du projet "Les mobilités en Vélib' et les infrastructures cyclables". Les scripts utilisés pour le projet y sont disponibles.​
